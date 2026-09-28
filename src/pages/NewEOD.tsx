@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getTodayReportForUser, submitEODReport } from '../services/eodService';
+import { getTodayReportForUser, submitEODReport, updateEODReport } from '../services/eodService';
 import { getTasksForMember } from '../services/taskService';
 import type { EODReport, TaskStatus } from '../types/eod';
 import type { MemberTask } from '../types/task';
@@ -14,10 +14,12 @@ import { CheckCircle2, FileText, AlertCircle, Eye, Edit3, CheckSquare } from 'lu
 export const NewEOD: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [existingReport, setExistingReport] = useState<EODReport | null>(null);
   const [assignedTasks, setAssignedTasks] = useState<MemberTask[]>([]);
   const [checkingExisting, setCheckingExisting] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(false);
   
   const [formData, setFormData] = useState<EODFormData>({
     tasks: [
@@ -39,6 +41,18 @@ export const NewEOD: React.FC = () => {
   const formattedDate = formatDisplayDate(todayISO);
   const memberName = user?.name || 'Team Member';
 
+  const populateFormForEditing = (report: EODReport) => {
+    setFormData({
+      tasks: report.tasks?.length ? report.tasks : [{ id: 'task_1', description: '', status: '✅ Completed' }],
+      achievements: report.keyAchievements || report.achievements || '',
+      pendingWork: report.pendingWork?.length ? report.pendingWork : [''],
+      blockers: report.blockers?.length ? report.blockers : ['No blockers'],
+      tomorrowPriorities: report.tomorrowPriorities?.length ? report.tomorrowPriorities : [''],
+      additionalUpdate: report.additionalUpdate || ''
+    });
+    setIsEditMode(true);
+  };
+
   useEffect(() => {
     const initData = async () => {
       if (!user) return;
@@ -50,8 +64,15 @@ export const NewEOD: React.FC = () => {
         const tasks = await getTasksForMember(user.uid);
         setAssignedTasks(tasks);
 
-        // Pre-populate Section 1 from assigned tasks if initial tasks are empty
-        if (!report && tasks.length > 0) {
+        const searchParams = new URLSearchParams(location.search);
+        const shouldEdit = searchParams.get('edit') === 'true';
+
+        if (report) {
+          if (shouldEdit) {
+            populateFormForEditing(report);
+          }
+        } else if (tasks.length > 0) {
+          // Pre-populate Section 1 from assigned tasks if initial tasks are empty
           const autoTasks = tasks.map((t, idx) => {
             let initialStatus: TaskStatus = '✅ Completed';
             if (t.status === 'in-progress') initialStatus = '🔄 In Progress';
@@ -78,7 +99,7 @@ export const NewEOD: React.FC = () => {
     };
 
     initData();
-  }, [user, todayISO]);
+  }, [user, todayISO, location.search]);
 
   const handleValidation = (): boolean => {
     setValidationError(null);
@@ -108,21 +129,35 @@ export const NewEOD: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const submittedReport = await submitEODReport({
-        userId: user.uid,
-        memberName,
-        memberEmail: user.email,
-        reportDate: todayISO,
-        tasks: formData.tasks,
-        achievements: formData.achievements,
-        pendingWork: formData.pendingWork.filter(p => p.trim()),
-        blockers: formData.blockers.filter(b => b.trim()),
-        tomorrowPriorities: formData.tomorrowPriorities.filter(t => t.trim()),
-        additionalUpdate: formData.additionalUpdate
-      });
+      if (isEditMode && existingReport) {
+        await updateEODReport(existingReport.id, {
+          tasks: formData.tasks,
+          achievements: formData.achievements,
+          pendingWork: formData.pendingWork.filter(p => p.trim()),
+          blockers: formData.blockers.filter(b => b.trim()),
+          tomorrowPriorities: formData.tomorrowPriorities.filter(t => t.trim()),
+          additionalUpdate: formData.additionalUpdate
+        });
 
-      setIsModalOpen(false);
-      navigate(`/eod/${submittedReport.id}`);
+        setIsModalOpen(false);
+        navigate(`/eod/${existingReport.id}`);
+      } else {
+        const submittedReport = await submitEODReport({
+          userId: user.uid,
+          memberName,
+          memberEmail: user.email,
+          reportDate: todayISO,
+          tasks: formData.tasks,
+          achievements: formData.achievements,
+          pendingWork: formData.pendingWork.filter(p => p.trim()),
+          blockers: formData.blockers.filter(b => b.trim()),
+          tomorrowPriorities: formData.tomorrowPriorities.filter(t => t.trim()),
+          additionalUpdate: formData.additionalUpdate
+        });
+
+        setIsModalOpen(false);
+        navigate(`/eod/${submittedReport.id}`);
+      }
     } catch (err: any) {
       setValidationError(err.message || 'Failed to submit report. Please try again.');
       setIsModalOpen(false);
@@ -160,7 +195,7 @@ export const NewEOD: React.FC = () => {
     );
   }
 
-  if (existingReport) {
+  if (existingReport && !isEditMode) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-6">
         <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
@@ -169,19 +204,28 @@ export const NewEOD: React.FC = () => {
 
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-slate-900">
-            ✅ Today's EOD has already been submitted.
+            Today's EOD has already been submitted.
           </h1>
           <p className="text-slate-600 text-sm max-w-md mx-auto">
-            You have already recorded your official EOD report for today ({formattedDate}). Duplicate submissions are protected.
+            You recorded your official EOD report for today ({formattedDate}). You can edit your submitted report or view the full report below.
           </p>
         </div>
 
-        <div className="pt-4 flex items-center justify-center gap-4">
+        <div className="pt-4 flex flex-wrap items-center justify-center gap-4">
+          <button
+            type="button"
+            onClick={() => populateFormForEditing(existingReport)}
+            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer"
+          >
+            <Edit3 className="w-4 h-4" />
+            Edit Today's EOD Report
+          </button>
+
           <Link
             to={`/eod/${existingReport.id}`}
-            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-md transition-all flex items-center gap-2"
+            className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-sm shadow-sm transition-all flex items-center gap-2"
           >
-            <FileText className="w-4 h-4" />
+            <FileText className="w-4 h-4 text-red-500" />
             View Today's EOD
           </Link>
 
@@ -270,6 +314,7 @@ export const NewEOD: React.FC = () => {
             memberName={memberName}
             formattedDate={formattedDate}
             submitting={isSubmitting}
+            isEditMode={isEditMode}
           />
         </div>
 

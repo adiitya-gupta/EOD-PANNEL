@@ -19,6 +19,7 @@ interface EODFormProps {
   memberName: string;
   formattedDate: string;
   submitting?: boolean;
+  isEditMode?: boolean;
 }
 
 export const EODForm: React.FC<EODFormProps> = ({
@@ -27,7 +28,8 @@ export const EODForm: React.FC<EODFormProps> = ({
   onSubmitPreview,
   memberName,
   formattedDate,
-  submitting = false
+  submitting = false,
+  isEditMode = false
 }) => {
 
   const handleAddPendingPoint = () => {
@@ -267,10 +269,10 @@ export const EODForm: React.FC<EODFormProps> = ({
             type="button"
             onClick={onSubmitPreview}
             disabled={submitting}
-            className="w-full py-3.5 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-base rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            className="w-full py-3.5 px-6 bg-red-600 hover:bg-red-700 text-white font-bold text-base rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
           >
             <CheckSquare className="w-5 h-5" />
-            Preview & Submit EOD
+            {isEditMode ? 'Preview & Update EOD Report' : 'Preview & Submit EOD'}
           </button>
         </div>
 

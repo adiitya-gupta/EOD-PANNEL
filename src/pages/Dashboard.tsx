@@ -23,7 +23,8 @@ import {
   Flame,
   ListTodo,
   TrendingUp,
-  Zap
+  Zap,
+  Edit3
 } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
@@ -221,6 +222,14 @@ export const Dashboard: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <Link
+                to="/eod/new?edit=true"
+                className="px-5 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm shadow-xs transition-colors flex items-center gap-2"
+              >
+                <Edit3 className="w-4 h-4" />
+                Edit Report
+              </Link>
+
               <Link
                 to={`/eod/${todayReport.id}`}
                 className="px-5 py-3 bg-white text-slate-900 hover:bg-slate-100 font-bold rounded-xl text-sm shadow-xs transition-colors flex items-center gap-2"

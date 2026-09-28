@@ -19,6 +19,7 @@ export interface EODReport {
   formattedDate: string;  // e.g. "27 September 2026"
   tasks: TaskItem[];
   achievements: string;
+  keyAchievements?: string;
   pendingWork: string[];
   blockers: string[];
   tomorrowPriorities: string[];
